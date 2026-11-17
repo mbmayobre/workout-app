@@ -15,27 +15,28 @@
  * the last logged set, and that data loads asynchronously. LoggerForm is
  * only created once the data is ready, so its starting values are right.
  */
-import { ChevronLeft, ChevronRight, Minus, Plus, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Minus, Pause, Play, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { Page } from '../components/Layout'
 import { RestCard, StopwatchCard } from '../components/TimerCards'
 import { Button, IconButton, NumberField } from '../components/ui'
-import { deleteSetLog, logSet } from '../db/actions'
+import { deleteSetLog, finishWorkout, logSet } from '../db/actions'
 import { useExerciseLogs, useExerciseMap, usePlanDay, useSettings } from '../db/hooks'
 import type { Exercise, PlanPick, SetLog, Settings } from '../db/types'
 import { dateKey, formatShortDate } from '../lib/dates'
 import { unlockAudio, useWakeLock } from '../lib/device'
-import { targetLabel } from '../lib/labels'
+import { dayTitle, targetLabel } from '../lib/labels'
 import { describeLog, groupByDate } from '../lib/stats'
 import {
-  clearRest,
-  clearWorkoutClock,
+  pauseWorkoutClock,
   resetStopwatch,
+  resumeWorkoutClock,
   startRest,
   startWorkoutClock,
   useNow,
   useTimers,
+  workoutElapsedMs,
 } from '../lib/timers'
 import {
   formatDuration,
@@ -73,10 +74,12 @@ export function WorkoutPage() {
   const isLast = index === day.picks.length - 1
 
   const goTo = (next: number) => setParams({ i: String(next) }, { replace: true })
-  const finish = () => {
-    clearRest()
-    resetStopwatch()
-    clearWorkoutClock()
+  const clock = workout?.date === today ? workout : null
+  const paused = Boolean(clock?.pausedAt)
+
+  // Saves the workout summary and stops every timer (see finishWorkout).
+  const finish = async () => {
+    await finishWorkout(dayTitle(day.types), today)
     navigate('/')
   }
 
@@ -90,9 +93,16 @@ export function WorkoutPage() {
           <span>
             Exercise {index + 1} of {day.picks.length}
           </span>
-          <span className="digits w-16 text-right" title="Workout time">
-            {workout ? formatDuration((now - workout.startedAt) / 1000) : ''}
-          </span>
+          {/* Workout clock. Tapping it pauses or resumes the workout. */}
+          <button
+            type="button"
+            onClick={paused ? resumeWorkoutClock : pauseWorkoutClock}
+            aria-label={paused ? 'Resume workout' : 'Pause workout'}
+            className={`digits -mr-2 flex min-h-11 items-center gap-1 rounded-xl px-2 active:bg-raised ${paused ? 'text-accent' : ''}`}
+          >
+            {paused ? <Play size={14} /> : <Pause size={14} />}
+            {clock ? formatDuration(workoutElapsedMs(clock, now) / 1000) : '0:00'}
+          </button>
         </div>
 
         {exercise ? (
@@ -111,7 +121,10 @@ export function WorkoutPage() {
             Previous
           </Button>
           {isLast ? (
-            <Button onClick={finish}>Finish workout</Button>
+            <Button onClick={finish}>
+              <Check size={18} />
+              Finish workout
+            </Button>
           ) : (
             <Button onClick={() => goTo(index + 1)}>
               Next

@@ -12,6 +12,7 @@ in [`src/db/types.ts`](../src/db/types.ts); this document explains them.
 | `setLogs` | One logged set, or one cardio effort | Grows over time |
 | `bodyWeights` | One body-weight measurement | At most one per day |
 | `settings` | App preferences | Always 1 |
+| `sessions` | A finished workout's summary | One per finished workout |
 
 ## Units
 
@@ -118,13 +119,42 @@ Only the fields that apply are present: `weightKg` for weighted exercises,
 `reps` or `seconds` depending on the exercise's `logMode`, and `seconds`
 with optional `distanceM` / `calories` for cardio.
 
-**There is no "workout session" record.** A workout is simply every set log
-that shares a `date`. This keeps the model small, and it makes the set
-counter on the workout screen a plain count of today's logs for that
-exercise. Tapping − on the counter deletes the most recent one.
+**Sets are saved the moment you log them**, not when the workout ends, so
+nothing is lost if the app closes mid-workout. The set counter on the
+workout screen is a plain count of today's logs for that exercise. Tapping −
+on the counter deletes the most recent one.
 
 Set logs point at an exercise by ID but are never deleted along with it, so
-removing an exercise from the library keeps your history.
+removing an exercise from the library keeps your history. ("Reset workout"
+on Today is the one action that deletes sets in bulk, and it asks first.)
+
+## WorkoutSession
+
+```ts
+{
+  id: '9c1e…',
+  date: '2026-11-17',
+  title: 'Back',            // the plan day's title at the time
+  startedAt: 1794930100000,
+  finishedAt: 1794933000000,
+  activeSeconds: 2650,      // excludes pauses
+  setCount: 16,
+  exerciseCount: 4,
+}
+```
+
+Written by "Finish workout". It is a summary: the sets stay in `setLogs`.
+It records what the sets alone cannot, mainly how long the workout took,
+and marks the workout as done.
+
+There is no "workout in progress" record. Sets on a day that were logged
+after that day's latest `finishedAt` belong to the workout in progress (see
+`inProgressLogs` in [`src/lib/stats.ts`](../src/lib/stats.ts)). Because
+this is worked out from synced data, it stays correct across devices.
+
+`activeSeconds` comes from the workout clock on the device you finish on.
+If you finish on a device that has no clock running (the sets were logged
+elsewhere), it falls back to the time between the first and last set.
 
 ## BodyWeightEntry
 
@@ -166,7 +196,15 @@ db.version(1).stores({
   bodyWeights: 'id, date',
   settings:    'id',
 })
+
+// Version 2 added finished-workout summaries.
+db.version(2).stores({
+  sessions: 'id, date, finishedAt',
+})
 ```
+
+Version 2 is a working example of the "Changing the schema" rules below: it
+adds a table in a new version block and leaves version 1 untouched.
 
 The first name is the primary key; the rest are indexes, which is what makes
 a field searchable with `.where()`. Fields not listed are still stored. The

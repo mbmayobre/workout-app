@@ -113,11 +113,45 @@ Details in [DATA-MODEL.md](DATA-MODEL.md).
 
 ## Screens and navigation
 
-`App.tsx` is the route table. There are two layouts:
+`App.tsx` is the route table. Every route uses one layout, **`AppLayout`**
+in `components/Layout.tsx`, so the bottom tab bar (Today, Plan, Exercises,
+Progress, Settings) is always visible and every section is one tap away,
+even mid-workout.
 
-- **`TabLayout`**: the four main screens with the bottom tab bar.
-- **`PlainLayout`**: focused screens (active workout, editors, settings)
-  with no tab bar and a back arrow.
+Sub-screens keep their parent tab highlighted: an exercise editor lights up
+Exercises, and the active workout and timers light up Today. Each tab's
+`sections` list in `Layout.tsx` decides this. Sub-screens also show a back
+arrow in their header.
+
+A screen can add its own bar above the tab bar by rendering it after its
+`<Page>`; the active workout does this for Previous / Next.
+
+## Workout lifecycle
+
+A workout on the Today screen is in one of four states:
+
+| State | How you get there | Controls shown |
+|---|---|---|
+| Not started | Nothing logged yet today, or the last workout was finished | Start workout |
+| In progress | Start workout, or any set logged | Continue, Pause, Finish, Reset |
+| Paused | Pause on Today, or tap the clock on the workout screen | Resume, Finish, Reset |
+| Finished | Finish workout | A summary card, then "Start another workout" |
+
+- **Pause** stops the workout clock, and any running rest timer or
+  stopwatch with it. The clock is in `lib/timers.ts` and stores timestamps,
+  so paused time is simply left out of the total.
+- **Finish** saves a `WorkoutSession` record (duration, sets, exercises)
+  and stops all timers. The sets themselves were already saved as you
+  logged them.
+- **Reset** asks first, then deletes the sets logged in the current
+  workout and stops all timers. Workouts already finished today are not
+  touched.
+
+Which sets belong to the current workout is worked out, not stored: they
+are today's sets logged after today's most recent finished workout
+(`inProgressLogs` in `lib/stats.ts`). That keeps working when sets were
+logged on another device. The logic is in `finishWorkout` and
+`resetWorkout` in `db/actions.ts`.
 
 The app is designed for a phone first. On wider screens the same single
 column is centred with a maximum width. There is no separate desktop design

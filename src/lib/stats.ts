@@ -2,7 +2,7 @@
  * Progress calculations: turning raw set logs into "last time" lines,
  * personal bests, and chart points. Pure functions, no database access.
  */
-import type { Exercise, SetLog, Settings } from '../db/types'
+import type { Exercise, SetLog, Settings, WorkoutSession } from '../db/types'
 import { formatDistance, formatDuration, formatWeight, kgToUnit, metresToUnit, weightUnitFor } from './units'
 
 /** One set as text: "185 lb × 8", "12 reps", "45s", "20 kg × 40s", "15:00 · 3.1 km". */
@@ -18,6 +18,16 @@ export function describeLog(log: SetLog, exercise: Exercise | undefined, setting
     return `${formatWeight(log.weightKg, weightUnitFor(exercise, settings))} × ${amount}`
   }
   return log.seconds !== undefined ? amount : `${amount} reps`
+}
+
+/**
+ * The sets that belong to a workout still in progress: those logged after
+ * the most recent finished workout of the same day. `logs` and `sessions`
+ * should both be for a single day.
+ */
+export function inProgressLogs(logs: SetLog[], sessions: WorkoutSession[]): SetLog[] {
+  const lastFinish = Math.max(0, ...sessions.map((session) => session.finishedAt))
+  return logs.filter((log) => log.at > lastFinish)
 }
 
 /** The most recent log for each exercise. `logs` must be oldest first. */

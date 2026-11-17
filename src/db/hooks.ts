@@ -14,7 +14,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo } from 'react'
 import { db } from './db'
 import { defaultSettings, SETTINGS_ID } from './seed'
-import type { BodyWeightEntry, Exercise, PlanDay, SetLog, Settings } from './types'
+import type { BodyWeightEntry, Exercise, PlanDay, SetLog, Settings, WorkoutSession } from './types'
 
 /** App settings. Returns the defaults until the real ones have loaded. */
 export function useSettings(): Settings {
@@ -65,6 +65,16 @@ export function useDayLogs(date: string): SetLog[] | undefined {
 /** Every set log. Used by the Progress screen to compute personal bests. */
 export function useAllLogs(): SetLog[] | undefined {
   return useLiveQuery(() => db.setLogs.orderBy('date').toArray())
+}
+
+/** Workouts finished on one day, oldest first. */
+export function useSessionsOn(date: string): WorkoutSession[] | undefined {
+  return useLiveQuery(() => db.sessions.where('date').equals(date).sortBy('finishedAt'), [date])
+}
+
+/** Every finished workout, newest first. */
+export function useAllSessions(): WorkoutSession[] | undefined {
+  return useLiveQuery(() => db.sessions.orderBy('finishedAt').reverse().toArray())
 }
 
 /** Body-weight entries, oldest first. */

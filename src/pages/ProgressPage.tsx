@@ -9,11 +9,14 @@ import { Page } from '../components/Layout'
 import { TrendChart } from '../components/LazyTrendChart'
 import { Button, Card, IconButton, NumberField, PageHeader, Row, SectionLabel, Segmented } from '../components/ui'
 import { deleteBodyWeight, saveBodyWeight, updateSettings } from '../db/actions'
-import { useAllExercises, useAllLogs, useBodyWeights, useSettings } from '../db/hooks'
+import { useAllExercises, useAllLogs, useAllSessions, useBodyWeights, useSettings } from '../db/hooks'
 import type { WeightUnit } from '../db/types'
 import { dateKey, formatShortDate, fromDateKey } from '../lib/dates'
 import { bestLog, describeLog, groupByDate } from '../lib/stats'
-import { formatWeight, kgToUnit, parseNumber, trimNumber, unitToKg } from '../lib/units'
+import { formatDuration, formatWeight, kgToUnit, parseNumber, trimNumber, unitToKg } from '../lib/units'
+
+/** How many finished workouts to list before "Show all". */
+const RECENT_WORKOUTS = 5
 
 export function ProgressPage() {
   const navigate = useNavigate()
@@ -143,6 +146,9 @@ export function ProgressPage() {
         )}
       </Card>
 
+      <SectionLabel>Workouts</SectionLabel>
+      <WorkoutList />
+
       <SectionLabel>Exercise history</SectionLabel>
       {trained.length === 0 ? (
         <p className="text-soft">Sets you log during a workout show up here with your personal bests.</p>
@@ -168,5 +174,53 @@ export function ProgressPage() {
         </div>
       )}
     </Page>
+  )
+}
+
+/** Finished workouts, newest first: what you trained, how long it took, and how many sets. */
+function WorkoutList() {
+  const sessions = useAllSessions()
+  const [showAll, setShowAll] = useState(false)
+  if (!sessions) return null
+  if (sessions.length === 0) {
+    return <p className="text-soft">Tap Finish workout on Today when you are done, and the workout shows up here.</p>
+  }
+
+  // Simple totals for the last 7 days, including today.
+  const weekAgo = new Date()
+  weekAgo.setDate(weekAgo.getDate() - 6)
+  const thisWeek = sessions.filter((session) => session.date >= dateKey(weekAgo))
+  const weekSeconds = thisWeek.reduce((sum, session) => sum + session.activeSeconds, 0)
+
+  const visible = showAll ? sessions : sessions.slice(0, RECENT_WORKOUTS)
+  return (
+    <>
+      <p className="mb-1 text-sm text-soft">
+        Last 7 days: {thisWeek.length} {thisWeek.length === 1 ? 'workout' : 'workouts'} ·{' '}
+        <span className="digits">{formatDuration(weekSeconds)}</span>
+      </p>
+      <div>
+        {visible.map((session) => (
+          <Row key={session.id}>
+            <div className="min-w-0 flex-1">
+              <div className="truncate">{session.title}</div>
+              <div className="text-sm text-soft">{formatShortDate(session.date)}</div>
+            </div>
+            <div className="text-right text-sm">
+              <div className="digits">{formatDuration(session.activeSeconds)}</div>
+              <div className="text-soft">
+                {session.setCount} {session.setCount === 1 ? 'set' : 'sets'} · {session.exerciseCount}{' '}
+                {session.exerciseCount === 1 ? 'exercise' : 'exercises'}
+              </div>
+            </div>
+          </Row>
+        ))}
+      </div>
+      {sessions.length > RECENT_WORKOUTS && (
+        <Button variant="ghost" full onClick={() => setShowAll(!showAll)}>
+          {showAll ? 'Show fewer' : `Show all ${sessions.length}`}
+        </Button>
+      )}
+    </>
   )
 }

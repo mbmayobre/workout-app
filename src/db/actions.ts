@@ -8,7 +8,10 @@
  *
  * Reading data is done with the hooks in ./hooks.ts.
  */
+import { dateKey } from '../lib/dates'
 import { shuffleDay, swapPick } from '../lib/shuffle'
+import { inProgressLogs } from '../lib/stats'
+import { endWorkoutTimers, getTimers, workoutElapsedMs } from '../lib/timers'
 import { db, newId } from './db'
 import { SETTINGS_ID } from './seed'
 import type { Exercise, PlanDay, SetLog, Settings } from './types'
@@ -129,6 +132,72 @@ export async function logSet(entry: Omit<SetLog, 'id' | 'at'>): Promise<void> {
 
 export async function deleteSetLog(id: string): Promise<void> {
   await db.setLogs.delete(id)
+}
+
+// ── Workout lifecycle ────────────────────────────────────────────────────
+//
+// A workout moves through these states (see the Today screen):
+//
+//   not started --Start--> in progress <--Pause/Resume--> paused
+//   in progress or paused --Finish--> finished (a WorkoutSession is saved)
+//   in progress or paused --Reset---> not started (its sets are deleted)
+//
+// "In progress" means sets have been logged since the day's last finished
+// workout, or the workout clock is running on this device.
+
+/**
+ * Finish the workout in progress: save a summary (see WorkoutSession in
+ * ./types.ts) and stop all timers. The sets were already saved as they were
+ * logged; this marks them as one completed workout.
+ *
+ * Returns false, saving nothing, if no sets were logged.
+ */
+export async function finishWorkout(title: string, date: string = dateKey()): Promise<boolean> {
+  const [logs, sessions] = await Promise.all([
+    db.setLogs.where('date').equals(date).toArray(),
+    db.sessions.where('date').equals(date).toArray(),
+  ])
+  const sets = inProgressLogs(logs, sessions)
+  const clock = getTimers().workout
+  const now = Date.now()
+  endWorkoutTimers()
+  if (sets.length === 0) return false
+
+  const times = sets.map((log) => log.at)
+  const clockToday = clock?.date === date ? clock : undefined
+  await db.sessions.add({
+    id: newId(),
+    date,
+    title,
+    startedAt: Math.min(clockToday?.startedAt ?? Infinity, ...times),
+    finishedAt: now,
+    // With no clock on this device (sets logged on another device), the
+    // best estimate is the span from the first set to the last.
+    activeSeconds: Math.round(
+      (clockToday ? workoutElapsedMs(clockToday, now) : Math.max(...times) - Math.min(...times)) / 1000,
+    ),
+    setCount: sets.length,
+    exerciseCount: new Set(sets.map((log) => log.exerciseId)).size,
+  })
+  return true
+}
+
+/**
+ * Cancel the workout in progress: delete the sets logged in it and stop all
+ * timers. Sets from workouts already finished today are not touched.
+ * Returns how many sets were deleted.
+ */
+export async function resetWorkout(date: string = dateKey()): Promise<number> {
+  endWorkoutTimers()
+  return db.transaction('rw', db.setLogs, db.sessions, async () => {
+    const [logs, sessions] = await Promise.all([
+      db.setLogs.where('date').equals(date).toArray(),
+      db.sessions.where('date').equals(date).toArray(),
+    ])
+    const sets = inProgressLogs(logs, sessions)
+    await db.setLogs.bulkDelete(sets.map((log) => log.id))
+    return sets.length
+  })
 }
 
 // ── Body weight ──────────────────────────────────────────────────────────

@@ -128,9 +128,10 @@ export interface PlanDay {
 /**
  * One logged set (or one cardio effort).
  *
- * There is no separate "workout session" record. A workout is simply all the
- * set logs that share a `date`, which keeps the model small and makes the set
- * counter a plain count of today's logs for an exercise.
+ * Sets are saved the moment they are logged, so nothing is lost if the app
+ * closes mid-workout, and Progress counts them straight away. Sets on the
+ * same `date` belong to that day's workout; the set counter is a plain
+ * count of today's logs for an exercise.
  */
 export interface SetLog {
   id: string
@@ -147,6 +148,32 @@ export interface SetLog {
   /** Metres (cardio, optional). */
   distanceM?: number
   calories?: number
+}
+
+/**
+ * A finished workout: a summary written when you tap "Finish workout".
+ *
+ * The sets themselves stay in `setLogs`. This record adds what the sets
+ * alone cannot tell you, such as how long the workout took (pauses
+ * excluded), and marks the day's workout as done. Sets logged after the
+ * latest session's `finishedAt` on the same day belong to a workout that is
+ * still in progress.
+ */
+export interface WorkoutSession {
+  id: string
+  /** Local calendar day, 'YYYY-MM-DD'. */
+  date: string
+  /** The plan day's title at the time, such as "Chest" or "Full body and cardio". */
+  title: string
+  /** Clock times in milliseconds since 1970. */
+  startedAt: number
+  finishedAt: number
+  /** Time spent working out, in seconds, not counting pauses. */
+  activeSeconds: number
+  /** Sets logged in this workout (a cardio effort counts as one). */
+  setCount: number
+  /** Distinct exercises trained. */
+  exerciseCount: number
 }
 
 /** One body-weight measurement. At most one per day (a second entry replaces the first). */

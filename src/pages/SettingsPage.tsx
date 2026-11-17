@@ -17,7 +17,7 @@ export function SettingsPage() {
 
   return (
     <Page>
-      <PageHeader title="Settings" back="/" />
+      <PageHeader title="Settings" />
 
       <SectionLabel>Units</SectionLabel>
       <Card className="flex flex-col gap-3">

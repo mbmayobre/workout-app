@@ -13,11 +13,11 @@
  *   /timers           Standalone stopwatch and countdown
  *   /settings         Units, rest time, sync, backup
  *
- * Routes inside <TabLayout> show the bottom tab bar; routes inside
- * <PlainLayout> are focused screens without it.
+ * Every route sits inside <AppLayout>, so the bottom tab bar is always
+ * visible. Sub-screens highlight their parent tab (see components/Layout.tsx).
  */
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { PlainLayout, TabLayout } from './components/Layout'
+import { AppLayout } from './components/Layout'
 import { RestAlarm } from './components/TimerCards'
 import { useSettings } from './db/hooks'
 import { DayEditPage } from './pages/DayEditPage'
@@ -38,13 +38,11 @@ export default function App() {
       {/* Invisible: plays the "rest over" alert on any screen. */}
       <RestAlarm sound={settings.sound} />
       <Routes>
-        <Route element={<TabLayout />}>
+        <Route element={<AppLayout />}>
           <Route index element={<TodayPage />} />
           <Route path="plan" element={<PlanPage />} />
           <Route path="exercises" element={<ExercisesPage />} />
           <Route path="progress" element={<ProgressPage />} />
-        </Route>
-        <Route element={<PlainLayout />}>
           <Route path="workout" element={<WorkoutPage />} />
           <Route path="plan/:weekday" element={<DayEditPage />} />
           <Route path="exercises/new" element={<ExerciseEditPage />} />

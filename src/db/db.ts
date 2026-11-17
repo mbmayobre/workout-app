@@ -17,7 +17,7 @@
 import Dexie, { type EntityTable, type Table } from 'dexie'
 import dexieCloud from 'dexie-cloud-addon'
 import { seedExercises, seedPlanDays, defaultSettings } from './seed'
-import type { BodyWeightEntry, Exercise, PlanDay, SetLog, Settings } from './types'
+import type { BodyWeightEntry, Exercise, PlanDay, SetLog, Settings, WorkoutSession } from './types'
 
 /** The sync server address, or undefined when sync is not set up. */
 const cloudUrl: string | undefined = import.meta.env.VITE_DEXIE_CLOUD_URL || undefined
@@ -35,6 +35,7 @@ export type WorkoutDb = Dexie & {
   setLogs: EntityTable<SetLog, 'id'>
   bodyWeights: EntityTable<BodyWeightEntry, 'id'>
   settings: EntityTable<Settings, 'id'>
+  sessions: EntityTable<WorkoutSession, 'id'>
 }
 
 export const db = new Dexie('workout', {
@@ -64,6 +65,12 @@ db.version(1).stores({
   setLogs: 'id, date, exerciseId, [exerciseId+date]',
   bodyWeights: 'id, date',
   settings: 'id',
+})
+
+// Version 2 adds finished-workout summaries. Only the new table is listed;
+// the others carry over from version 1 unchanged.
+db.version(2).stores({
+  sessions: 'id, date, finishedAt',
 })
 
 if (cloudUrl) {

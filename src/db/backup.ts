@@ -5,11 +5,13 @@
  * you hold yourself, and a way to move data without an account.
  */
 import { db } from './db'
-import type { BodyWeightEntry, Exercise, PlanDay, SetLog, Settings } from './types'
+import type { BodyWeightEntry, Exercise, PlanDay, SetLog, Settings, WorkoutSession } from './types'
 
 /** Bump this if the backup file layout ever changes, and handle old versions in `importBackup`. */
 const BACKUP_VERSION = 1
 
+// Adding `sessions` did not need a version bump: it is optional, so files
+// from before it existed still import, and new files only add a table.
 export interface BackupFile {
   app: 'workout'
   version: number
@@ -19,6 +21,8 @@ export interface BackupFile {
   setLogs: SetLog[]
   bodyWeights: BodyWeightEntry[]
   settings: Settings[]
+  /** Added after the first release. Older backup files simply lack it. */
+  sessions?: WorkoutSession[]
 }
 
 /** Read every table into one plain object. */
@@ -32,6 +36,7 @@ export async function createBackup(): Promise<BackupFile> {
     setLogs: await db.setLogs.toArray(),
     bodyWeights: await db.bodyWeights.toArray(),
     settings: await db.settings.toArray(),
+    sessions: await db.sessions.toArray(),
   }
 }
 
@@ -80,14 +85,17 @@ export async function importBackup(text: string): Promise<number> {
   const setLogs = rows(data.setLogs)
   const bodyWeights = rows(data.bodyWeights)
   const settings = rows(data.settings)
+  const sessions = rows(data.sessions)
 
   // One transaction: either the whole import succeeds or none of it is saved.
-  await db.transaction('rw', [db.exercises, db.planDays, db.setLogs, db.bodyWeights, db.settings], async () => {
+  const tables = [db.exercises, db.planDays, db.setLogs, db.bodyWeights, db.settings, db.sessions]
+  await db.transaction('rw', tables, async () => {
     await db.exercises.bulkPut(exercises)
     await db.planDays.bulkPut(planDays)
     await db.setLogs.bulkPut(setLogs)
     await db.bodyWeights.bulkPut(bodyWeights)
     await db.settings.bulkPut(settings)
+    await db.sessions.bulkPut(sessions)
   })
-  return exercises.length + planDays.length + setLogs.length + bodyWeights.length + settings.length
+  return exercises.length + planDays.length + setLogs.length + bodyWeights.length + settings.length + sessions.length
 }

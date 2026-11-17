@@ -65,20 +65,29 @@ export function ExercisesPage() {
         className="h-11 w-full rounded-xl border border-line bg-raised px-3 outline-none placeholder:text-faint focus:border-accent"
       />
 
-      {/* Each filter row scrolls sideways so all options stay one tap away. Tapping the selected chip clears it. */}
-      <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1" aria-label="Filter by category">
-        {CATEGORIES.map(({ value, label }) => (
-          <Chip key={value} selected={category === value} onClick={() => setCategory(category === value ? null : value)}>
-            {label}
-          </Chip>
-        ))}
-      </div>
-      <div className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-1" aria-label="Filter by equipment">
-        {EQUIPMENT_FILTERS.map((value) => (
-          <Chip key={value} selected={equipment === value} onClick={() => setEquipment(equipment === value ? null : value)}>
-            {EQUIPMENT_LABELS[value]}
-          </Chip>
-        ))}
+      {/*
+        Both filter rows sit inside ONE sideways-scrolling area, so they move
+        together. `w-max` lets the inner block be as wide as its longest row
+        instead of squeezing to the screen width. Tapping a selected chip
+        clears that filter.
+      */}
+      <div className="-mx-4 mt-3 overflow-x-auto pb-1 pl-4">
+        <div className="flex w-max flex-col gap-2 pr-4">
+          <div role="group" aria-label="Filter by category" className="flex gap-2">
+            {CATEGORIES.map(({ value, label }) => (
+              <Chip key={value} selected={category === value} onClick={() => setCategory(category === value ? null : value)}>
+                {label}
+              </Chip>
+            ))}
+          </div>
+          <div role="group" aria-label="Filter by equipment" className="flex gap-2">
+            {EQUIPMENT_FILTERS.map((value) => (
+              <Chip key={value} selected={equipment === value} onClick={() => setEquipment(equipment === value ? null : value)}>
+                {EQUIPMENT_LABELS[value]}
+              </Chip>
+            ))}
+          </div>
+        </div>
       </div>
 
       <p className="mt-3 text-sm text-soft">

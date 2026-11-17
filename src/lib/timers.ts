@@ -39,8 +39,19 @@ export interface Stopwatch {
 interface TimerState {
   rest: RestTimer
   stopwatch: Stopwatch
-  /** When today's workout was started, to show total workout time. */
-  workout: { date: string; startedAt: number } | null
+  /** Today's workout clock, or null when no workout is in progress on this device. */
+  workout: WorkoutClock | null
+}
+
+export interface WorkoutClock {
+  /** The day the workout belongs to, 'YYYY-MM-DD'. */
+  date: string
+  /** Clock time (ms) when the workout started. */
+  startedAt: number
+  /** Clock time (ms) when it was paused, or null while running. */
+  pausedAt?: number | null
+  /** Total milliseconds spent in earlier pauses. */
+  pausedMs?: number
 }
 
 const STORAGE_KEY = 'workout.timers'
@@ -120,6 +131,17 @@ export function restRemainingMs(rest: RestTimer, now: number): number {
   return Math.max(0, rest.endsAt - now)
 }
 
+/** Time spent working out so far, not counting pauses. */
+export function workoutElapsedMs(workout: WorkoutClock, now: number): number {
+  const end = workout.pausedAt ?? now
+  return Math.max(0, end - workout.startedAt - (workout.pausedMs ?? 0))
+}
+
+/** The current timer state, for code outside React components (see db/actions.ts). */
+export function getTimers(): TimerState {
+  return state
+}
+
 export function stopwatchElapsedMs(stopwatch: Stopwatch, now: number): number {
   const running = stopwatch.startedAt === null ? 0 : Math.max(0, now - stopwatch.startedAt)
   return stopwatch.accumulatedMs + running
@@ -187,12 +209,38 @@ export function resetStopwatch(): void {
 
 // ── Workout clock ────────────────────────────────────────────────────────
 
-/** Start the workout clock for `date`, unless it is already running for that day. */
+/**
+ * Start the workout clock for `date`. If it is already running for that day
+ * nothing changes; if it is paused, it resumes. A clock left over from an
+ * earlier day is replaced.
+ */
 export function startWorkoutClock(date: string): void {
-  if (state.workout?.date === date) return
-  setState({ ...state, workout: { date, startedAt: Date.now() } })
+  const workout = state.workout
+  if (workout?.date === date) {
+    if (workout.pausedAt) resumeWorkoutClock()
+    return
+  }
+  setState({ ...state, workout: { date, startedAt: Date.now(), pausedAt: null, pausedMs: 0 } })
 }
 
-export function clearWorkoutClock(): void {
-  setState({ ...state, workout: null })
+/** Pause the workout: the clock stops, and so do a running rest timer and stopwatch. */
+export function pauseWorkoutClock(): void {
+  const workout = state.workout
+  if (!workout || workout.pausedAt) return
+  setState({ ...state, workout: { ...workout, pausedAt: Date.now() } })
+  pauseRest()
+  pauseStopwatch()
+}
+
+/** Resume the workout clock. A paused rest timer stays paused until you resume it yourself. */
+export function resumeWorkoutClock(): void {
+  const workout = state.workout
+  if (!workout?.pausedAt) return
+  const pausedMs = (workout.pausedMs ?? 0) + (Date.now() - workout.pausedAt)
+  setState({ ...state, workout: { ...workout, pausedAt: null, pausedMs } })
+}
+
+/** Stop and clear everything: workout clock, rest timer, and stopwatch. */
+export function endWorkoutTimers(): void {
+  setState(initialState)
 }

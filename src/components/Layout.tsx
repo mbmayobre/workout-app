@@ -1,22 +1,39 @@
 /**
- * The frame around every screen: a centred column for the content and,
- * on the four main screens, the bottom tab bar.
+ * The frame around every screen: a centred column for the content and the
+ * bottom tab bar, which is shown on EVERY screen so each section is always
+ * one tap away, even mid-workout.
  *
  * Mobile first: the column is the full width of a phone. On a desktop
  * browser it stops growing at a comfortable reading width and is centred,
  * so the same layout works everywhere without a separate desktop design.
  */
-import { CalendarDays, ChartLine, Dumbbell, House } from 'lucide-react'
+import { CalendarDays, ChartLine, Dumbbell, House, Settings, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { cx } from './ui'
 
-const TABS = [
-  { to: '/', label: 'Today', icon: House },
-  { to: '/plan', label: 'Plan', icon: CalendarDays },
-  { to: '/exercises', label: 'Exercises', icon: Dumbbell },
-  { to: '/progress', label: 'Progress', icon: ChartLine },
+interface Tab {
+  to: string
+  label: string
+  icon: LucideIcon
+  /** URL prefixes that count as "inside" this tab, so it stays highlighted on sub-screens. */
+  sections: string[]
+}
+
+const TABS: Tab[] = [
+  // The active workout and the timers screen are reached from Today, so they belong to it.
+  { to: '/', label: 'Today', icon: House, sections: ['/workout', '/timers'] },
+  { to: '/plan', label: 'Plan', icon: CalendarDays, sections: ['/plan'] },
+  { to: '/exercises', label: 'Exercises', icon: Dumbbell, sections: ['/exercises'] },
+  { to: '/progress', label: 'Progress', icon: ChartLine, sections: ['/progress'] },
+  { to: '/settings', label: 'Settings', icon: Settings, sections: ['/settings'] },
 ]
+
+/** True when `path` is the tab's own page or one of its sub-screens. */
+function isInTab(tab: Tab, path: string): boolean {
+  if (path === tab.to) return true
+  return tab.sections.some((section) => path === section || path.startsWith(`${section}/`))
+}
 
 /** Scrollable content column. `env(safe-area-inset-*)` keeps clear of the iPhone notch. */
 export function Page({ children }: { children: ReactNode }) {
@@ -27,39 +44,40 @@ export function Page({ children }: { children: ReactNode }) {
   )
 }
 
-/** Layout for the main screens: content above, tab bar pinned to the bottom. */
-export function TabLayout() {
+/**
+ * The one layout every route uses: the current screen above, the tab bar
+ * pinned to the bottom. A screen may add its own bar (the active workout's
+ * Previous / Next) by rendering it after its <Page>; it then sits directly
+ * above the tab bar.
+ */
+export function AppLayout() {
+  const { pathname } = useLocation()
   return (
     <div className="flex h-full flex-col">
       {/* <Outlet /> is where React Router draws the current screen. */}
       <Outlet />
       <nav className="border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto flex max-w-xl">
-          {TABS.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              // `end` on "/" stops Today from staying highlighted on every other route.
-              end={to === '/'}
-              className={({ isActive }) =>
-                cx('flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-xs', isActive ? 'text-accent' : 'text-faint')
-              }
-            >
-              <Icon size={22} />
-              {label}
-            </NavLink>
-          ))}
+          {TABS.map((tab) => {
+            const active = isInTab(tab, pathname)
+            const Icon = tab.icon
+            return (
+              <Link
+                key={tab.to}
+                to={tab.to}
+                aria-current={active ? 'page' : undefined}
+                className={cx(
+                  'flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-xs',
+                  active ? 'text-accent' : 'text-faint',
+                )}
+              >
+                <Icon size={22} />
+                {tab.label}
+              </Link>
+            )
+          })}
         </div>
       </nav>
-    </div>
-  )
-}
-
-/** Layout for focused screens (active workout, editors): no tab bar. */
-export function PlainLayout() {
-  return (
-    <div className="flex h-full flex-col">
-      <Outlet />
     </div>
   )
 }
