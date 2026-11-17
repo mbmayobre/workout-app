@@ -1,0 +1,146 @@
+/**
+ * Actions: every way the app CHANGES stored data.
+ *
+ * Screens never write to the database directly; they call a function from
+ * this file. Keeping writes in one place means the rules (for example "a
+ * built-in exercise is archived, not deleted") live in exactly one spot, and
+ * you can see everything the app is able to change by reading this file.
+ *
+ * Reading data is done with the hooks in ./hooks.ts.
+ */
+import { shuffleDay, swapPick } from '../lib/shuffle'
+import { db, newId } from './db'
+import { SETTINGS_ID } from './seed'
+import type { Exercise, PlanDay, SetLog, Settings } from './types'
+
+// ── Settings ─────────────────────────────────────────────────────────────
+
+export async function updateSettings(changes: Partial<Omit<Settings, 'id'>>): Promise<void> {
+  await db.settings.update(SETTINGS_ID, changes)
+}
+
+// ── Exercises ────────────────────────────────────────────────────────────
+
+/** Create or update an exercise. Pass an exercise without an id to create one. */
+export async function saveExercise(exercise: Omit<Exercise, 'id'> & { id?: string }): Promise<string> {
+  const id = exercise.id ?? newId()
+  await db.exercises.put({ ...exercise, id })
+  return id
+}
+
+/**
+ * Remove an exercise from the library and from every plan day.
+ * Logged sets are kept, so history and personal bests are not lost.
+ */
+export async function deleteExercise(id: string): Promise<void> {
+  await db.transaction('rw', db.exercises, db.planDays, async () => {
+    if (id.startsWith('#')) {
+      // Built-in: hide it (see `archived` in ./types.ts for why).
+      await db.exercises.update(id, { archived: true })
+    } else {
+      await db.exercises.delete(id)
+    }
+    const days = await db.planDays.toArray()
+    for (const day of days) {
+      if (day.picks.some((pick) => pick.exerciseId === id)) {
+        await db.planDays.update(day.id, { picks: day.picks.filter((pick) => pick.exerciseId !== id) })
+      }
+    }
+  })
+}
+
+// ── Weekly plan ──────────────────────────────────────────────────────────
+
+export async function updatePlanDay(id: string, changes: Partial<Omit<PlanDay, 'id' | 'weekday'>>): Promise<void> {
+  await db.planDays.update(id, changes)
+}
+
+/** IDs of exercises that are in `before` but not in `after`. */
+function replacedIds(before: PlanDay['picks'], after: PlanDay['picks']): string[] {
+  const kept = new Set(after.map((pick) => pick.exerciseId))
+  return before.map((pick) => pick.exerciseId).filter((exerciseId) => !kept.has(exerciseId))
+}
+
+/** Re-roll every unpinned exercise of one day. */
+export async function reshuffleDay(day: PlanDay, exercises: Exercise[]): Promise<void> {
+  const picks = shuffleDay(day, exercises)
+  await db.planDays.update(day.id, { picks, lastPickIds: replacedIds(day.picks, picks) })
+}
+
+/** Re-roll every unpinned exercise of every day. */
+export async function reshuffleWeek(days: PlanDay[], exercises: Exercise[]): Promise<void> {
+  await db.transaction('rw', db.planDays, async () => {
+    for (const day of days) await reshuffleDay(day, exercises)
+  })
+}
+
+/**
+ * Change how many exercises a day has, keeping the ones already there.
+ * Growing adds new exercises by the usual shuffle rules; shrinking removes
+ * unpinned exercises from the end (pinned ones are never removed here).
+ */
+export async function resizeDay(day: PlanDay, count: number, exercises: Exercise[]): Promise<void> {
+  let picks = day.picks
+  if (picks.length > count) {
+    const surplus = picks.length - count
+    // Walk backwards, dropping unpinned picks until enough are gone.
+    let dropped = 0
+    picks = [...picks]
+      .reverse()
+      .filter((pick) => pick.pinned || dropped++ >= surplus)
+      .reverse()
+  } else if (picks.length < count) {
+    // Shuffle with every current pick temporarily pinned, so only the empty
+    // slots are filled, then give the original picks their real pin state back.
+    const wasPinned = new Map(picks.map((pick) => [pick.exerciseId, pick.pinned]))
+    const frozen = { ...day, count, picks: picks.map((pick) => ({ ...pick, pinned: true })) }
+    picks = shuffleDay(frozen, exercises).map((pick) => ({
+      ...pick,
+      pinned: wasPinned.get(pick.exerciseId) ?? false,
+    }))
+  }
+  await db.planDays.update(day.id, { count, picks })
+}
+
+/** Change a day's workout types (or shuffle style) and re-roll its unpinned exercises to match. */
+export async function retargetDay(
+  day: PlanDay,
+  changes: Partial<Pick<PlanDay, 'types' | 'style'>>,
+  exercises: Exercise[],
+): Promise<void> {
+  const next = { ...day, ...changes }
+  const picks = shuffleDay(next, exercises)
+  await db.planDays.update(day.id, { ...changes, picks, lastPickIds: replacedIds(day.picks, picks) })
+}
+
+/** Replace the single exercise at `index` in a day. */
+export async function swapDayPick(day: PlanDay, index: number, exercises: Exercise[]): Promise<void> {
+  const picks = swapPick(day, index, exercises)
+  // Remember the swapped-out exercise too, so it does not come straight back.
+  const lastPickIds = [...new Set([...day.lastPickIds, ...replacedIds(day.picks, picks)])]
+  await db.planDays.update(day.id, { picks, lastPickIds })
+}
+
+// ── Set logs ─────────────────────────────────────────────────────────────
+
+export async function logSet(entry: Omit<SetLog, 'id' | 'at'>): Promise<void> {
+  await db.setLogs.add({ ...entry, id: newId(), at: Date.now() })
+}
+
+export async function deleteSetLog(id: string): Promise<void> {
+  await db.setLogs.delete(id)
+}
+
+// ── Body weight ──────────────────────────────────────────────────────────
+
+/** Record body weight for a day. A second entry on the same day replaces the first. */
+export async function saveBodyWeight(date: string, weightKg: number): Promise<void> {
+  await db.transaction('rw', db.bodyWeights, async () => {
+    const existing = await db.bodyWeights.where('date').equals(date).first()
+    await db.bodyWeights.put({ id: existing?.id ?? newId(), date, weightKg })
+  })
+}
+
+export async function deleteBodyWeight(id: string): Promise<void> {
+  await db.bodyWeights.delete(id)
+}

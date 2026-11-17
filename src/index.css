@@ -1,0 +1,88 @@
+/*
+ * Global styles and design tokens.
+ *
+ * Tailwind v4 is configured here in CSS rather than in a JS config file.
+ * Every `--color-*` variable declared inside `@theme` becomes a set of
+ * utility classes: `--color-surface` gives `bg-surface`, `text-surface`,
+ * `border-surface`, and so on.
+ *
+ * The app is dark by default (easier on the eyes in a gym and on battery)
+ * and switches to a light palette when the device is in light mode. Only the
+ * variable values change; components never mention a specific hex colour.
+ */
+@import 'tailwindcss';
+
+@theme {
+  --color-page: #0f1115; /* app background */
+  --color-surface: #181b21; /* cards, tab bar */
+  --color-raised: #22262e; /* inputs, chips, buttons on a card */
+  --color-line: #2e333d; /* hairline borders */
+  --color-ink: #f2f4f7; /* main text */
+  --color-soft: #a3abb8; /* supporting text */
+  --color-faint: #6b7380; /* hints, placeholders, inactive icons */
+  --color-accent: #4c9aff; /* the one highlight colour: primary actions */
+  --color-accent-soft: #16304f; /* tinted background behind accent text */
+  --color-on-accent: #06121f; /* text on top of an accent fill */
+  --color-good: #4cc38a; /* done ticks, positive trends */
+  --color-bad: #f2766b; /* destructive actions, errors */
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-page: #f4f5f7;
+    --color-surface: #ffffff;
+    --color-raised: #eceef2;
+    --color-line: #d9dde4;
+    --color-ink: #14171c;
+    --color-soft: #55606e;
+    --color-faint: #8b94a1;
+    --color-accent: #1f6fd6;
+    --color-accent-soft: #e1edfc;
+    --color-on-accent: #ffffff;
+    --color-good: #1c8a56;
+    --color-bad: #c9382b;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Stops the page "bouncing" when you scroll past the end on a phone. */
+  overscroll-behavior-y: none;
+  /* Removes the grey flash on tap in mobile Safari/Chrome. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Number inputs: hide the tiny spinner arrows, which are unusable on touch. */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/*
+ * Timer digits: tabular numbers keep every digit the same width so the
+ * display does not jiggle as the seconds change.
+ */
+.digits {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
