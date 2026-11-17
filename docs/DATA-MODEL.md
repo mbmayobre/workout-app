@@ -121,8 +121,10 @@ with optional `distanceM` / `calories` for cardio.
 
 **Sets are saved the moment you log them**, not when the workout ends, so
 nothing is lost if the app closes mid-workout. The set counter on the
-workout screen is a plain count of today's logs for that exercise. Tapping −
-on the counter deletes the most recent one.
+workout screen shows a plain count of today's logs for that exercise
+against the pick's target `sets`. Its − and + buttons change that target
+(saved to the plan day's pick), not the sets done; a logged set is removed
+with the × next to it.
 
 Set logs point at an exercise by ID but are never deleted along with it, so
 removing an exercise from the library keeps your history. ("Reset workout"

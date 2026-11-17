@@ -21,7 +21,7 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { Page } from '../components/Layout'
 import { RestCard, StopwatchCard } from '../components/TimerCards'
 import { Button, IconButton, NumberField } from '../components/ui'
-import { deleteSetLog, finishWorkout, logSet } from '../db/actions'
+import { adjustPickSets, deleteSetLog, finishWorkout, logSet } from '../db/actions'
 import { useExerciseLogs, useExerciseMap, usePlanDay, useSettings } from '../db/hooks'
 import type { Exercise, PlanPick, SetLog, Settings } from '../db/types'
 import { dateKey, formatShortDate } from '../lib/dates'
@@ -108,7 +108,14 @@ export function WorkoutPage() {
         {exercise ? (
           // `key` makes React build a fresh logger (with fresh input boxes)
           // whenever the exercise changes.
-          <ExerciseLogger key={exercise.id} pick={pick} exercise={exercise} settings={settings} date={today} />
+          <ExerciseLogger
+            key={exercise.id}
+            pick={pick}
+            exercise={exercise}
+            settings={settings}
+            date={today}
+            onAdjustSets={(delta, min) => adjustPickSets(day.id, index, delta, { min, max: MAX_SETS })}
+          />
         ) : (
           <p className="text-soft">This exercise was deleted. Swap it out on the Today screen.</p>
         )}
@@ -142,7 +149,15 @@ interface LoggerProps {
   exercise: Exercise
   settings: Settings
   date: string
+  /**
+   * Add `delta` sets to this exercise's target (negative removes), never
+   * going below `min`. Saved to today's plan day.
+   */
+  onAdjustSets: (delta: number, min: number) => void
 }
+
+/** Most sets an exercise can be given; matches the day editor's limit. */
+const MAX_SETS = 20
 
 /** Loads the exercise's history, then shows the form. */
 function ExerciseLogger(props: LoggerProps) {
@@ -151,7 +166,7 @@ function ExerciseLogger(props: LoggerProps) {
   return <LoggerForm {...props} history={history} />
 }
 
-function LoggerForm({ pick, exercise, settings, date, history }: LoggerProps & { history: SetLog[] }) {
+function LoggerForm({ pick, exercise, settings, date, history, onAdjustSets }: LoggerProps & { history: SetLog[] }) {
   const isCardio = exercise.kind === 'cardio'
   const isTimed = !isCardio && exercise.logMode === 'time'
   const usesWeight = exercise.kind === 'strength'
@@ -223,10 +238,9 @@ function LoggerForm({ pick, exercise, settings, date, history }: LoggerProps & {
     if (!isCardio && settings.autoRest) startRest(settings.restSeconds)
   }
 
-  const removeLast = () => {
-    const last = todayLogs.at(-1)
-    if (last) void deleteSetLog(last.id)
-  }
+  // The target can't drop below the sets already done (a logged set you
+  // want gone is deleted with the × in the list below), or below 1.
+  const minSets = Math.max(1, todayLogs.length)
 
   // Typing in any box clears a previous error message.
   const editing = (setter: (text: string) => void) => (text: string) => {
@@ -251,18 +265,32 @@ function LoggerForm({ pick, exercise, settings, date, history }: LoggerProps & {
       {isTimed && <StopwatchCard targetSeconds={pick.seconds} label="Set timer" />}
       {!isCardio && <RestCard defaultSeconds={settings.restSeconds} />}
 
-      {/* The set counter. + logs a set with the values below; − removes the last one. */}
+      {/*
+        The set counter: sets done / target sets. − and + change the TARGET
+        (3 sets becomes 4), not the sets done. Sets are done by logging them
+        with the button below.
+      */}
       {!isCardio && (
         <div className="flex items-center justify-between">
-          <span>Sets done</span>
+          <span className="whitespace-nowrap">Sets done</span>
           <div className="flex items-center gap-1">
-            <IconButton label="Remove last set" className="bg-raised" disabled={todayLogs.length === 0} onClick={removeLast}>
+            <IconButton
+              label="Remove a set from the target"
+              className="bg-raised"
+              disabled={pick.sets <= minSets}
+              onClick={() => onAdjustSets(-1, minSets)}
+            >
               <Minus size={18} />
             </IconButton>
             <span className="digits w-20 text-center text-2xl font-semibold">
               {todayLogs.length} / {pick.sets}
             </span>
-            <IconButton label="Log a set" className="bg-raised" onClick={log}>
+            <IconButton
+              label="Add a set to the target"
+              className="bg-raised"
+              disabled={pick.sets >= MAX_SETS}
+              onClick={() => onAdjustSets(1, minSets)}
+            >
               <Plus size={18} />
             </IconButton>
           </div>

@@ -116,6 +116,31 @@ export async function retargetDay(
   await db.planDays.update(day.id, { ...changes, picks, lastPickIds: replacedIds(day.picks, picks) })
 }
 
+/**
+ * Add `delta` sets (negative to remove) to the target of the exercise at
+ * `index`, keeping the result between `min` and `max`.
+ *
+ * The current value is read inside the same transaction as the write.
+ * Passing a new value computed on screen instead would lose taps: two quick
+ * taps would both start from the same old number before the screen had
+ * redrawn.
+ */
+export async function adjustPickSets(
+  dayId: string,
+  index: number,
+  delta: number,
+  { min = 1, max = 20 }: { min?: number; max?: number } = {},
+): Promise<void> {
+  await db.transaction('rw', db.planDays, async () => {
+    const day = await db.planDays.get(dayId)
+    const pick = day?.picks[index]
+    if (!day || !pick) return
+    const sets = Math.min(max, Math.max(min, pick.sets + delta))
+    if (sets === pick.sets) return
+    await db.planDays.update(dayId, { picks: day.picks.map((p, i) => (i === index ? { ...p, sets } : p)) })
+  })
+}
+
 /** Replace the single exercise at `index` in a day. */
 export async function swapDayPick(day: PlanDay, index: number, exercises: Exercise[]): Promise<void> {
   const picks = swapPick(day, index, exercises)
