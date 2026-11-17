@@ -7,7 +7,7 @@ import { Page } from '../components/Layout'
 import { Button, Card, PageHeader, SectionLabel, Segmented, Toggle } from '../components/ui'
 import { updateSettings } from '../db/actions'
 import { downloadBackup, importBackup } from '../db/backup'
-import { db, syncEnabled } from '../db/db'
+import { db, signIn, syncEnabled } from '../db/db'
 import { useSettings } from '../db/hooks'
 import type { DistanceUnit, WeightUnit } from '../db/types'
 import { formatDuration } from '../lib/units'
@@ -138,9 +138,9 @@ function SyncCard() {
         <>
           <p>Sign in to back up your data and see it on your other devices.</p>
           <p className="mt-1 text-sm text-soft">
-            You get a one-time code by email. Everything already on this device is kept and uploaded.
+            You get a one-time code by email. Your saved data then downloads to this device.
           </p>
-          <Button className="mt-3" onClick={() => run(() => db.cloud.login())}>
+          <Button className="mt-3" onClick={() => run(signIn)}>
             Sign in
           </Button>
         </>

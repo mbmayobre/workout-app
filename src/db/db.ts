@@ -80,23 +80,99 @@ if (cloudUrl) {
 /**
  * First-run setup: make sure the built-in records exist.
  *
- * Runs every time the database opens, not just the first time, so that
- * exercises added to the seed list in a later release show up for existing
- * users. It only ADDS missing records and never overwrites, so your edits to
- * a built-in exercise are kept.
+ * Adds any built-in exercise, plan day, or settings record that is missing.
+ * It only ADDS and never overwrites, so your edits to built-in records are
+ * kept. It runs:
+ *
+ * - every time the database opens, so exercises added to the seed list in a
+ *   later release show up for existing users;
+ * - after every sync (when sync is on). On a device that has just signed
+ *   in, this runs only once your saved data has downloaded, so it fills
+ *   real gaps instead of competing with your saved plan.
+ *
+ * Runs are queued one after another: two overlapping runs could both decide
+ * the same record is missing and both try to add it.
  */
-db.on('ready', async () => {
+let seeding: Promise<void> = Promise.resolve()
+
+export function ensureBuiltIns(): Promise<void> {
+  seeding = seeding.then(seedMissing, seedMissing)
+  return seeding
+}
+
+async function seedMissing(): Promise<void> {
   const addMissing = async <T extends { id: string }>(table: Table<T, string>, items: T[]) => {
     const found = await table.bulkGet(items.map((item) => item.id))
     const missing = items.filter((_, index) => !found[index])
     if (missing.length > 0) await table.bulkAdd(missing)
   }
-  // `db.table(name)` returns the loosely typed form of a table, which lets
-  // one helper work for all three.
-  await addMissing(db.table('exercises'), seedExercises)
-  await addMissing(db.table('planDays'), seedPlanDays)
-  await addMissing(db.table('settings'), [defaultSettings])
+  try {
+    // `db.table(name)` returns the loosely typed form of a table, which lets
+    // one helper work for all three.
+    await addMissing(db.table('exercises'), seedExercises)
+    await addMissing(db.table('planDays'), seedPlanDays)
+    await addMissing(db.table('settings'), [defaultSettings])
+  } catch (error) {
+    // Most likely a record arrived from sync between the check and the add.
+    // Nothing is lost: the next run fills anything still missing.
+    console.warn('Adding built-in records failed; it will be retried.', error)
+  }
+}
+
+db.on('ready', () => {
+  void ensureBuiltIns()
 })
+
+if (cloudUrl) {
+  db.cloud.events.syncComplete.subscribe(() => {
+    void ensureBuiltIns()
+  })
+}
+
+/**
+ * Sign in to cloud sync, without letting a fresh device overwrite your data.
+ *
+ * WHY THIS EXISTS: on the first sign-in on a device, Dexie Cloud uploads
+ * every record already stored there. The app creates a default plan and
+ * settings the moment it first opens, so on a new phone those defaults
+ * would be uploaded over the plan and settings you already have in the
+ * cloud.
+ *
+ * So, before signing in: if this device holds nothing you created (no
+ * logged sets, body weights, or exercises of your own), its built-in
+ * records are cleared first. Nothing is uploaded, your saved data
+ * downloads, and `ensureBuiltIns` then adds only what the cloud does not
+ * have (for a brand-new account, that is everything).
+ *
+ * If you DID use this device before signing in, its data is kept and
+ * uploaded, as Dexie Cloud normally does. Its plan days and settings then
+ * replace the ones in the cloud.
+ */
+export async function signIn(): Promise<void> {
+  const user = await db.cloud.currentUser.getValue()
+  if (!user.isLoggedIn) {
+    const [sets, weights, ownExercises] = await Promise.all([
+      db.setLogs.count(),
+      db.bodyWeights.count(),
+      db.exercises.filter((exercise) => !exercise.id.startsWith('#')).count(),
+    ])
+    if (sets + weights + ownExercises === 0) {
+      // Signed out, so these deletions are local only: Dexie Cloud does not
+      // record changes for upload until you are signed in.
+      await db.transaction('rw', db.exercises, db.planDays, db.settings, async () => {
+        await db.exercises.clear()
+        await db.planDays.clear()
+        await db.settings.clear()
+      })
+    }
+  }
+  try {
+    await db.cloud.login()
+  } finally {
+    // If sign-in was cancelled, put the built-in records straight back.
+    await ensureBuiltIns()
+  }
+}
 
 /** A new globally unique ID for a user-created record. */
 export function newId(): string {

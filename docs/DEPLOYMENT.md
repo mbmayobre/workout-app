@@ -119,11 +119,19 @@ the URL. The secret is `dexie-cloud.key`, which never leaves your computer.
 ### Step 4: sign in
 
 In the app: **Settings → Sync → Sign in**. Enter your email, then the code
-you are sent. Everything already on the device is uploaded. Do the same on
-each other device and your data appears there.
+you are sent. Do the same on each other device and your data appears there.
 
 Signing in is once per device. After that, sync runs by itself whenever the
 app is open and online.
+
+**Sign in on a new device before using it.** The first time a device signs
+in, Dexie Cloud uploads whatever that device already holds. The app guards
+against the common case: if you have not logged anything on the device yet,
+it clears its own default plan and settings before signing in, so your saved
+ones download instead of being overwritten (see `signIn` in
+[`src/db/db.ts`](../src/db/db.ts)). But if you log sets on a device first and
+sign in afterwards, that device's plan and settings replace the ones in the
+cloud.
 
 ### How sync behaves
 
@@ -135,6 +143,9 @@ app is open and online.
   data downloads again.
 - **Before signing in:** the app is fully usable, with data on that device
   only.
+- **Signing out** clears that device's local copy (your data stays in the
+  cloud and downloads again when you sign back in). If the device has changes
+  that have not synced yet, you are asked before they are discarded.
 
 ### Using the database from another computer
 
