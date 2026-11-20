@@ -17,7 +17,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Layout'
 import { Button, Card, IconButton, PageHeader, Row } from '../components/ui'
-import { finishWorkout, reshuffleDay, resetWorkout, swapDayPick } from '../db/actions'
+import { SortableList } from '../components/SortableList'
+import { finishWorkout, movePick, reshuffleDay, resetWorkout, swapDayPick } from '../db/actions'
 import { useAllExercises, useAllLogs, useDayLogs, useExerciseMap, usePlanDay, useSessionsOn, useSettings } from '../db/hooks'
 import { dateKey, formatLongDate } from '../lib/dates'
 import { dayTitle, joinList, MUSCLE_LABELS, targetLabel } from '../lib/labels'
@@ -110,13 +111,20 @@ export function TodayPage() {
       {day.picks.length === 0 ? (
         <p className="text-soft">No exercises yet. Shuffle to fill the day from your library.</p>
       ) : (
-        <div>
-          {day.picks.map((pick, index) => {
+        // Drag the grip on the left to change the order you do the exercises in.
+        <SortableList
+          ids={day.picks.map((pick) => pick.exerciseId)}
+          onMove={(from, to) => movePick(day.id, from, to)}
+          renderItem={(exerciseId, handle) => {
+            const index = day.picks.findIndex((pick) => pick.exerciseId === exerciseId)
+            const pick = day.picks[index]
+            if (!pick) return null
             const exercise = exerciseMap.get(pick.exerciseId)
             const last = lastLogs.get(pick.exerciseId)
             const done = setsDone(pick.exerciseId)
             return (
-              <Row key={pick.exerciseId}>
+              <Row>
+                {handle}
                 <div className="min-w-0 flex-1">
                   <div className="truncate">{exercise?.name ?? 'Deleted exercise'}</div>
                   <div className="truncate text-sm text-soft">
@@ -141,8 +149,8 @@ export function TodayPage() {
                 )}
               </Row>
             )
-          })}
-        </div>
+          }}
+        />
       )}
 
       {showsCoverage(day.types) && day.picks.length > 0 && (

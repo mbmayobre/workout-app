@@ -92,9 +92,10 @@ All IDs are strings.
 }
 ```
 
-- **`picks`** is the day's current exercise list. It stays the same until
-  you shuffle or edit, so the week's workouts are stable.
-- **`pinned`** picks survive every shuffle.
+- **`picks`** is the day's current exercise list, **in workout order**
+  (drag and drop on Today or in the day editor changes it). It stays the
+  same until you shuffle or edit, so the week's workouts are stable.
+- **`pinned`** picks survive every shuffle, at the same position.
 - Each pick carries its **own** target `sets` / `reps` / `seconds`, copied
   from the exercise's defaults when added. Changing a target on one day does
   not affect another day or the exercise itself.

@@ -59,6 +59,18 @@ describe('shuffleDay', () => {
     }
   })
 
+  it('keeps pinned picks at the position they were in', () => {
+    for (const seed of SEEDS) {
+      const day = makeDay(['back'], 4)
+      day.picks = shuffleDay(day, seedExercises, seededRng(seed))
+      // Pin the third exercise, as if it had been dragged there and pinned.
+      day.picks[2] = { ...day.picks[2], pinned: true }
+      const after = shuffleDay(day, seedExercises, seededRng(seed + 500))
+      expect(after).toHaveLength(4)
+      expect(after[2]).toEqual(day.picks[2])
+    }
+  })
+
   it('avoids the exercises the day had before, when the pool allows', () => {
     for (const seed of SEEDS) {
       const day = makeDay(['chest'], 4)

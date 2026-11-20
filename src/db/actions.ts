@@ -117,6 +117,22 @@ export async function retargetDay(
 }
 
 /**
+ * Move the exercise at position `from` to position `to` within a day (drag
+ * and drop). Read and written in one transaction, so two quick drags in a
+ * row both apply.
+ */
+export async function movePick(dayId: string, from: number, to: number): Promise<void> {
+  await db.transaction('rw', db.planDays, async () => {
+    const day = await db.planDays.get(dayId)
+    if (!day || from === to || !day.picks[from] || to < 0 || to >= day.picks.length) return
+    const picks = [...day.picks]
+    const [pick] = picks.splice(from, 1)
+    picks.splice(to, 0, pick)
+    await db.planDays.update(dayId, { picks })
+  })
+}
+
+/**
  * Add `delta` sets (negative to remove) to the target of the exercise at
  * `index`, keeping the result between `min` and `max`.
  *

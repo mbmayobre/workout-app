@@ -278,9 +278,33 @@ export function shuffleDay(day: PlanDay, exercises: Exercise[], rng: Rng = Math.
   const usedIds = new Set([...keptExercises, ...strength].map((exercise) => exercise.id))
   const cardio = chooseCardio(exercises, usedIds, needCardio, avoid, rng)
 
-  const all = [...kept, ...strength.map(makePick), ...cardio.map(makePick)]
-  // Stable sort: cardio goes to the end, everything else keeps its order.
-  return [...all.filter((pick) => !isCardio(pick)), ...all.filter(isCardio)]
+  // New strength picks first, new cardio last.
+  const fresh = [...strength.map(makePick), ...cardio.map(makePick)]
+  return placePicks(day.picks, kept, fresh)
+}
+
+/**
+ * Lay out a shuffled day so your ordering survives.
+ *
+ * Pinned picks stay at the position they had (you may have dragged them
+ * there). The new picks fill the remaining positions, top to bottom, in the
+ * order given. With nothing pinned this is simply `fresh`, so cardio still
+ * comes last.
+ */
+function placePicks(previous: PlanPick[], kept: PlanPick[], fresh: PlanPick[]): PlanPick[] {
+  const total = kept.length + fresh.length
+  const slots: (PlanPick | undefined)[] = new Array(total).fill(undefined)
+
+  for (const pick of kept) {
+    // Its old position, or the last position if the day got shorter.
+    let slot = Math.min(previous.indexOf(pick), total - 1)
+    // Two pinned picks can only collide when the day shrank; take the next free spot.
+    while (slots[slot]) slot = (slot + 1) % total
+    slots[slot] = pick
+  }
+
+  let next = 0
+  return slots.map((pick) => pick ?? fresh[next++])
 }
 
 /**

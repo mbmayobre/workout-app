@@ -12,9 +12,9 @@ works with no signal.
 
 | Screen | What you do there |
 |---|---|
-| **Today** | See today's workout. Swap one exercise, shuffle the whole day, and start, pause, finish, or reset the workout. |
+| **Today** | See today's workout. Drag exercises into the order you want, swap one, shuffle the whole day, and start, pause, finish, or reset the workout. |
 | **Active workout** | One exercise at a time: rest timer or stopwatch, set counter, weight and reps inputs, sets logged so far. Tap the clock to pause. |
-| **Plan** | Give each weekday one or more workout types (chest, legs, full body, cardio, kettlebell…), choose how many exercises, pin the ones you always want. |
+| **Plan** | Give each weekday one or more workout types (chest, legs, full body, cardio, kettlebell…), choose how many exercises, pin the ones you always want, and drag them into order. |
 | **Exercises** | Browse, search, and filter the library by muscle group and equipment. Add your own. |
 | **Progress** | Log body weight and see the trend, see finished workouts, and see a personal best and history for every exercise. |
 | **Timers** | A standalone stopwatch and countdown. |
@@ -86,6 +86,7 @@ src/
     ui.tsx              Buttons, chips, inputs, cards.
     Layout.tsx          Page frame and bottom tab bar.
     TimerCards.tsx      Rest countdown and stopwatch displays.
+    SortableList.tsx    Drag-and-drop list (exercise order).
     TrendChart.tsx      Line chart (loaded on demand via LazyTrendChart.tsx).
 
   pages/              One file per screen.

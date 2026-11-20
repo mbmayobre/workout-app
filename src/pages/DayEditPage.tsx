@@ -10,7 +10,8 @@ import { useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { Page } from '../components/Layout'
 import { Button, Chip, IconButton, PageHeader, SectionLabel, Segmented, Stepper, cx } from '../components/ui'
-import { reshuffleDay, resizeDay, retargetDay, swapDayPick, updatePlanDay } from '../db/actions'
+import { SortableList } from '../components/SortableList'
+import { movePick, reshuffleDay, resizeDay, retargetDay, swapDayPick, updatePlanDay } from '../db/actions'
 import { useAllExercises, useExerciseMap, usePlanDay } from '../db/hooks'
 import type { DayType, PlanPick, ShuffleStyle } from '../db/types'
 import { WEEKDAY_NAMES } from '../lib/dates'
@@ -105,18 +106,25 @@ export function DayEditPage() {
 
           <SectionLabel>This week's exercises</SectionLabel>
           {day.picks.length === 0 && <p className="text-sm text-soft">No exercises match this day yet.</p>}
-          <div>
-            {day.picks.map((pick, index) => {
+          {/* Drag the grip on the left to change the order of the day's exercises. */}
+          <SortableList
+            ids={day.picks.map((pick) => pick.exerciseId)}
+            onMove={(from, to) => movePick(day.id, from, to)}
+            renderItem={(exerciseId, handle) => {
+              const index = day.picks.findIndex((pick) => pick.exerciseId === exerciseId)
+              const pick = day.picks[index]
+              if (!pick) return null
               const exercise = exerciseMap.get(pick.exerciseId)
               const open = openId === pick.exerciseId
               const isCardio = exercise?.kind === 'cardio'
               const isTimed = exercise?.logMode === 'time'
               return (
-                <div key={pick.exerciseId} className="border-b border-line last:border-b-0">
+                <div>
                   <div className="flex min-h-14 items-center gap-1">
+                    {handle}
                     <IconButton
                       label={pick.pinned ? `Unpin ${exercise?.name}` : `Pin ${exercise?.name}`}
-                      className={cx('-ml-2', pick.pinned && 'text-accent')}
+                      className={cx('-ml-3', pick.pinned && 'text-accent')}
                       onClick={() => changePick(index, { pinned: !pick.pinned })}
                     >
                       {pick.pinned ? <Pin size={18} /> : <PinOff size={18} />}
@@ -140,7 +148,7 @@ export function DayEditPage() {
                   </div>
 
                   {open && (
-                    <div className="flex flex-col gap-3 pb-4 pl-10">
+                    <div className="flex flex-col gap-3 pb-4 pl-18">
                       {!isCardio && (
                         <div className="flex items-center justify-between">
                           <span className="text-sm">Sets</span>
@@ -182,8 +190,8 @@ export function DayEditPage() {
                   )}
                 </div>
               )
-            })}
-          </div>
+            }}
+          />
 
           {showsCoverage(day.types) && day.picks.length > 0 && (
             <p className="mt-3 text-sm text-soft">

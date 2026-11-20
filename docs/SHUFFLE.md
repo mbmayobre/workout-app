@@ -15,6 +15,12 @@ rules here are checked by [`src/lib/shuffle.test.ts`](../src/lib/shuffle.test.ts
 **Pinned exercises are never replaced.** Pin the staples you always want
 (squats on leg day) and let the rest rotate.
 
+**Pinned exercises keep their position.** You can drag exercises into any
+order (on Today or in the day editor). When you shuffle, a pinned exercise
+stays where it is, and the new exercises fill the other positions from the
+top down. So pin your first lift in first place and it stays first. Unpinned
+exercises are replaced, so their order is not kept.
+
 ## Step 1: which exercises are allowed
 
 A day's workout types decide the pool:
@@ -118,9 +124,19 @@ day, and is not the one you just swapped out.
 
 ## Changing the number of exercises
 
-In the day editor, raising the count keeps the current exercises and fills
-the new slots by the rules above. Lowering it removes unpinned exercises
-from the end. Pinned exercises are never removed this way.
+In the day editor, raising the count keeps the current exercises in their
+current order and adds the new ones at the end. Lowering it removes
+unpinned exercises from the end. Pinned exercises are never removed this
+way.
+
+## Changing the order
+
+Drag an exercise by its grip (⋮⋮ on the left of the row), on Today or in
+the day editor. The order is saved to the plan day straight away, and it is
+the order the active workout steps through. Swapping one exercise keeps the
+replacement in the same position. The code is `movePick` in
+[`src/db/actions.ts`](../src/db/actions.ts) and the list itself is
+[`src/components/SortableList.tsx`](../src/components/SortableList.tsx).
 
 ## Tuning
 
